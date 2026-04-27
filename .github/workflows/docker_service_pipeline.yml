@@ -76,6 +76,11 @@ jobs:
             ${{ steps.image.outputs.sha_tag }}
             ${{ steps.image.outputs.latest_tag }}
 
+      - name: Smoke test Docker image
+        shell: bash
+        run: |
+          docker run --rm --entrypoint node "${{ steps.image.outputs.sha_tag }}" -e "require('./routes/authRoutes'); require('./utils/seedDemoUsers')"
+
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
