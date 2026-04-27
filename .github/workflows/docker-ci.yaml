@@ -7,7 +7,6 @@ on:
       - labeled
     branches:
       - main
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -18,10 +17,11 @@ permissions:
 
 jobs:
   docker:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'build')) }}
+    if: ${{ github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'build') }}
     uses: ./.github/workflows/docker_service_pipeline.yml
     with:
       service_name: user-service
       service_path: .
     secrets:
       GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITOPS_TOKEN: ${{ secrets.GITOPS_TOKEN }}
