@@ -79,7 +79,46 @@ jobs:
       - name: Smoke test Docker image
         shell: bash
         run: |
-          docker run --rm --entrypoint node "${{ steps.image.outputs.sha_tag }}" -e "require('./routes/authRoutes'); require('./utils/seedDemoUsers')"
+          set -euo pipefail
+
+          docker network create user-service-smoke
+          docker run -d --rm \
+            --name user-service-smoke-mongo \
+            --network user-service-smoke \
+            mongo:7
+
+          docker run -d --rm \
+            --name user-service-smoke-app \
+            --network user-service-smoke \
+            -p 5001:5001 \
+            -e PORT=5001 \
+            -e JWT_SECRET=ci-smoke-secret \
+            -e MONGO_URI=mongodb://user-service-smoke-mongo:27017/user-service-smoke \
+            "${{ steps.image.outputs.sha_tag }}"
+
+          cleanup() {
+            docker logs user-service-smoke-app || true
+            docker stop user-service-smoke-app user-service-smoke-mongo || true
+            docker network rm user-service-smoke || true
+          }
+          trap cleanup EXIT
+
+          for attempt in {1..30}; do
+            if curl -sS -o /dev/null http://127.0.0.1:5001/auth/profile; then
+              echo "Docker image smoke test passed."
+              exit 0
+            fi
+
+            if [ "$(docker inspect -f '{{.State.Running}}' user-service-smoke-app)" != "true" ]; then
+              echo "Container exited before becoming ready."
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          echo "Container did not become ready on port 5001."
+          exit 1
 
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
