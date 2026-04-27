@@ -33,6 +33,10 @@ const PORT = process.env.PORT || 5001;
 
 const startServer = async () => {
   try {
+    if (!MONGO_URI) {
+      throw new Error('MONGO_URI_USER or MONGO_URI is required');
+    }
+
     await mongoose.connect(MONGO_URI);
     console.log('User Service DB Connected');
     await ensureDemoUsers();
@@ -41,6 +45,7 @@ const startServer = async () => {
     app.listen(PORT, () => console.log(`User Service running on port ${PORT}`));
   } catch (err) {
     console.error('User Service startup failed:', err);
+    process.exit(1);
   }
 };
 
