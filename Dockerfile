@@ -25,5 +25,5 @@ COPY --chown=root:root --chmod=0555 utils ./utils
 
 USER node
 
-EXPOSE 5001
+EXPOSE 5000
 CMD ["npm", "start"]

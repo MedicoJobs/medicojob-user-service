@@ -13,4 +13,4 @@ spec:
         value: /auth
     backendRefs:
     - name: user-service
-      port: 5001
+      port: 5000
