@@ -15,6 +15,8 @@ const userSchema = new mongoose.Schema({
   longitude: { type: Number },
   preferredLocations: [{ type: String }],           // for job recommendations
   skills: [{ type: String }],                       // for job recommendations
+  profileImage: { type: String, default: '' },
+  resumeUrl: { type: String, default: '' },
   verified: { type: Boolean, default: false },
 }, { timestamps: true });
 
