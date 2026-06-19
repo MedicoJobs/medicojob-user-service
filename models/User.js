@@ -17,6 +17,7 @@ const userSchema = new mongoose.Schema({
   skills: [{ type: String }],                       // for job recommendations
   profileImage: { type: String, default: '' },
   resumeUrl: { type: String, default: '' },
+  resumeAnalysis: { type: mongoose.Schema.Types.Mixed, default: null },
   verified: { type: Boolean, default: false },
 }, { timestamps: true });
 

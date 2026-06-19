@@ -2,6 +2,12 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+const fileUrl = (req) => {
+  if (req.file.location) return req.file.location;
+  const relativePath = req.file.path.replace(/\\/g, '/').split('/public/')[1];
+  return `${req.protocol}://${req.get('host')}/public/${relativePath}`;
+};
+
 const serializeUser = (user) => ({
   id: String(user._id),
   _id: String(user._id),
@@ -20,6 +26,7 @@ const serializeUser = (user) => ({
   skills: user.skills || [],
   profileImage: user.profileImage || '',
   resumeUrl: user.resumeUrl || '',
+  resumeAnalysis: user.resumeAnalysis || null,
   verified: Boolean(user.verified),
 });
 
@@ -110,7 +117,7 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   try {
-    const allowed = ['name', 'phone', 'bio', 'specialization', 'licenseNumber', 'experience', 'currentLocation', 'latitude', 'longitude', 'preferredLocations', 'skills'];
+    const allowed = ['name', 'phone', 'bio', 'specialization', 'licenseNumber', 'experience', 'currentLocation', 'latitude', 'longitude', 'preferredLocations', 'skills', 'resumeAnalysis'];
     const updates = {};
     allowed.forEach(field => { if (req.body[field] !== undefined) updates[field] = req.body[field]; });
     const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select('-password');
@@ -124,7 +131,7 @@ exports.updateProfile = async (req, res) => {
 exports.getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId)
-      .select('name email role specialization experience licenseNumber bio phone currentLocation latitude longitude skills preferredLocations verified profileImage resumeUrl');
+      .select('name email role specialization experience licenseNumber bio phone currentLocation latitude longitude skills preferredLocations verified profileImage resumeUrl resumeAnalysis');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(serializeUser(user));
   } catch (error) {
@@ -148,7 +155,7 @@ exports.uploadProfileImageHandler = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
-    const imageUrl = req.file.location; // S3 returns the URL in 'location' property
+    const imageUrl = fileUrl(req);
     const user = await User.findByIdAndUpdate(req.user.id, { profileImage: imageUrl }, { new: true }).select('-password');
     res.json({ message: 'Profile image uploaded successfully', profileImage: imageUrl, user: serializeUser(user) });
   } catch (error) {
@@ -161,7 +168,7 @@ exports.uploadResumeHandler = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: 'No file uploaded' });
     }
-    const resumeUrl = req.file.location; // S3 returns the URL in 'location' property
+    const resumeUrl = fileUrl(req);
     const user = await User.findByIdAndUpdate(req.user.id, { resumeUrl }, { new: true }).select('-password');
     res.json({ message: 'Resume uploaded successfully', resumeUrl, user: serializeUser(user) });
   } catch (error) {
