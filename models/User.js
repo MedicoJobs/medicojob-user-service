@@ -18,6 +18,9 @@ const client = DynamoDBDocumentClient.from(new DynamoDBClient({ region: AWS_REGI
   },
 });
 
+
+
+
 const FIELDS = [
   'id',
   'name',
