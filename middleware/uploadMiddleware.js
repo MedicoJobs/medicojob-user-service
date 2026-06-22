@@ -54,7 +54,7 @@ const uploadProfileImage = multer({
 });
 
 const uploadResume = multer({
-  storage: useLocalUploads ? localStorage('resumes') : s3Storage('S3_RESUMES_PREFIX', 'resumes'),
+  storage: useLocalUploads ? localStorage('resumes') : s3Storage('S3_RESUMES_PREFIX', 'resume-pdfs'),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
