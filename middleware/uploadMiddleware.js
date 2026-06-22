@@ -28,6 +28,16 @@ const ensureUploadDir = (folder) => {
   return dir;
 };
 
+const enforceContentLength = (maxBytes) => (req, res, next) => {
+  const contentLength = Number(req.headers['content-length']);
+
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    return res.status(413).json({ message: 'Uploaded file is too large' });
+  }
+
+  return next();
+};
+
 const localStorage = (folder) => multer.diskStorage({
   destination: (req, file, cb) => cb(null, ensureUploadDir(folder)),
   filename: (req, file, cb) => cb(null, `${Date.now()}-${safeFileName(file.originalname)}`),
@@ -87,6 +97,9 @@ const uploadResume = multer({
 });
 
 module.exports = {
+  enforceContentLength,
+  PROFILE_IMAGE_MAX_BYTES,
+  RESUME_MAX_BYTES,
   uploadProfileImage,
   uploadResume
 };
