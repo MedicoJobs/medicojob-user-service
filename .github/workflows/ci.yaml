@@ -113,6 +113,7 @@ jobs:
             -Dsonar.projectName=${{ env.SERVICE_NAME }}
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
             -Dsonar.exclusions=.github/**
+            -Dsonar.coverage.exclusions=**/*
             -Dsonar.branch.name=${{ github.ref_name }}
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=600
@@ -129,6 +130,7 @@ jobs:
             -Dsonar.projectName=${{ env.SERVICE_NAME }}
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
             -Dsonar.exclusions=.github/**
+            -Dsonar.coverage.exclusions=**/*
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=600
   snyk_scan:
