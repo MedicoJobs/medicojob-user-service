@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const {
   DeleteCommand,
@@ -42,7 +42,7 @@ const FIELDS = [
   'updatedAt',
 ];
 
-const clone = (value) => JSON.parse(JSON.stringify(value));
+const clone = (value) => structuredClone(value);
 
 const normalize = (data = {}) => {
   const now = new Date().toISOString();
