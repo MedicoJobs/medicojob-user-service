@@ -17,6 +17,10 @@ const safeFileName = (fileName) => fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
 
 const s3 = new S3Client({ region });
 const uploadRoot = path.join(__dirname, '..', 'public', 'uploads');
+const ONE_MB = 1024 * 1024;
+const PROFILE_IMAGE_MAX_BYTES = 2 * ONE_MB;
+const RESUME_MAX_BYTES = 10 * ONE_MB;
+const MULTIPART_TEXT_FIELD_MAX_BYTES = 16 * 1024;
 
 const ensureUploadDir = (folder) => {
   const dir = path.join(uploadRoot, folder);
@@ -43,7 +47,12 @@ const s3Storage = (prefixEnvName, fallbackPrefix) => multerS3({
 
 const uploadProfileImage = multer({
   storage: useLocalUploads ? localStorage('profile-images') : s3Storage('S3_PROFILE_IMAGES_PREFIX', 'profile-images'),
-  limits: { fileSize: 2 * 1024 * 1024 },
+  limits: {
+    fileSize: PROFILE_IMAGE_MAX_BYTES,
+    files: 1,
+    fields: 0,
+    parts: 1,
+  },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
       cb(null, true);
@@ -55,7 +64,13 @@ const uploadProfileImage = multer({
 
 const uploadResume = multer({
   storage: useLocalUploads ? localStorage('resumes') : s3Storage('S3_RESUMES_PREFIX', 'resume-pdfs'),
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: {
+    fileSize: RESUME_MAX_BYTES,
+    files: 1,
+    fields: 0,
+    parts: 1,
+    fieldSize: MULTIPART_TEXT_FIELD_MAX_BYTES,
+  },
   fileFilter: (req, file, cb) => {
     const allowedTypes = [
       'application/pdf',
