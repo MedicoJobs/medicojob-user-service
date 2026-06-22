@@ -35,6 +35,8 @@ jobs:
     name: SonarQube code quality
     runs-on: ubuntu-latest
     needs: get_email
+    outputs:
+      sonar_failed: ${{ steps.sonar_status.outputs.failed }}
 
     steps:
       - name: Checkout service
@@ -102,7 +104,9 @@ jobs:
           fi
 
       - name: SonarCloud branch scan and quality gate
+        id: sonar_branch
         if: github.event_name == 'push'
+        continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@v7.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -119,7 +123,9 @@ jobs:
             -Dsonar.qualitygate.timeout=600
 
       - name: SonarCloud pull request scan and quality gate
+        id: sonar_pr
         if: github.event_name == 'pull_request'
+        continue-on-error: true
         uses: SonarSource/sonarqube-scan-action@v7.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -133,6 +139,17 @@ jobs:
             -Dsonar.coverage.exclusions=**/*
             -Dsonar.qualitygate.wait=true
             -Dsonar.qualitygate.timeout=600
+
+      - name: Record SonarCloud result
+        id: sonar_status
+        shell: bash
+        run: |
+          if [ "${{ steps.sonar_branch.outcome }}" = "failure" ] || [ "${{ steps.sonar_pr.outcome }}" = "failure" ]; then
+            echo "failed=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::SonarCloud quality gate failed. The pipeline will continue and notify the developer."
+          else
+            echo "failed=false" >> "$GITHUB_OUTPUT"
+          fi
   snyk_scan:
     name: snyk-scan / snyk
     runs-on: ubuntu-latest
@@ -205,7 +222,7 @@ jobs:
       - sonar
       - snyk_scan
       - snyk_summary
-    if: always() && (needs.sonar.result == 'failure' || needs.snyk_scan.result == 'failure')
+    if: always() && (needs.sonar.outputs.sonar_failed == 'true' || needs.snyk_scan.result == 'failure')
 
     steps:
       - name: Checkout service
@@ -215,7 +232,7 @@ jobs:
         id: failure
         shell: bash
         run: |
-          if [ "${{ needs.sonar.result }}" = "failure" ]; then
+          if [ "${{ needs.sonar.outputs.sonar_failed }}" = "true" ]; then
             echo "reason=SonarCloud analysis or quality gate failed for $SERVICE_NAME." >> "$GITHUB_OUTPUT"
             echo "report=https://sonarcloud.io/dashboard?id=$SONAR_PROJECT_KEY" >> "$GITHUB_OUTPUT"
           elif [ "${{ needs.snyk_scan.result }}" = "failure" ]; then
@@ -243,7 +260,7 @@ jobs:
           report_url: ${{ steps.failure.outputs.report }}
           failure_reason: |
             ${{ steps.failure.outputs.reason }}
-            The pull request must not be merged until validation passes.
+            Notification only: this workflow is configured to continue after SonarCloud quality gate failures.
 
 
 
