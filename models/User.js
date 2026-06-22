@@ -97,19 +97,29 @@ class User {
       throw new Error('Only email lookup is supported for User.findOne');
     }
 
-    const result = await client.send(new ScanCommand({
-      TableName: TABLE_NAME,
-      FilterExpression: '#email = :email',
-      ExpressionAttributeNames: {
-        '#email': 'email',
-      },
-      ExpressionAttributeValues: {
-        ':email': query.email,
-      },
-      Limit: 1,
-    }));
+    let exclusiveStartKey;
 
-    return User.fromItem(result.Items?.[0]);
+    do {
+      const result = await client.send(new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: '#email = :email',
+        ExpressionAttributeNames: {
+          '#email': 'email',
+        },
+        ExpressionAttributeValues: {
+          ':email': query.email,
+        },
+        ExclusiveStartKey: exclusiveStartKey,
+      }));
+
+      if (result.Items?.length) {
+        return User.fromItem(result.Items[0]);
+      }
+
+      exclusiveStartKey = result.LastEvaluatedKey;
+    } while (exclusiveStartKey);
+
+    return null;
   }
 
   static async findById(id) {
