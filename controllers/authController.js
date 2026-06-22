@@ -1,8 +1,7 @@
 const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'local-dev-secret';
+const { jwtSecret } = require('../config/auth');
 
 const fileUrl = (req) => {
   if (req.file.location) return req.file.location;
@@ -83,27 +82,21 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log(`Login attempt for: ${email}`);
     const user = await User.findOne({ email });
     
     if (!user) {
-      console.log(`User not found: ${email}`);
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    console.log(`Password match for ${email}: ${isMatch}`);
     
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: user._id, role: user.role }, jwtSecret, { expiresIn: '1d' });
     res.json({ token, user: serializeUser(user) });
   } catch (error) {
-    console.error('LOGIN ERROR:', error);
-    res.status(500).json({
-      error: error.message,
-      stack: error.stack
-    });
+    console.error('Login failed unexpectedly:', error);
+    res.status(500).json({ message: 'Internal Server Error' });
   }
 };
 
