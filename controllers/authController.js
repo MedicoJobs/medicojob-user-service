@@ -2,6 +2,8 @@ const User = require('../models/User');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'local-dev-secret';
+
 const fileUrl = (req) => {
   if (req.file.location) return req.file.location;
   const relativePath = req.file.path.replace(/\\/g, '/').split('/public/')[1];
@@ -94,7 +96,7 @@ exports.login = async (req, res) => {
     
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
+    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1d' });
     res.json({ token, user: serializeUser(user) });
   } catch (error) {
     console.error('LOGIN ERROR:', error);
@@ -107,7 +109,7 @@ exports.login = async (req, res) => {
 
 exports.getProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(serializeUser(user));
   } catch (error) {
@@ -120,7 +122,7 @@ exports.updateProfile = async (req, res) => {
     const allowed = ['name', 'phone', 'bio', 'specialization', 'licenseNumber', 'experience', 'currentLocation', 'latitude', 'longitude', 'preferredLocations', 'skills', 'resumeAnalysis'];
     const updates = {};
     allowed.forEach(field => { if (req.body[field] !== undefined) updates[field] = req.body[field]; });
-    const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true }).select('-password');
+    const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true });
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(serializeUser(user));
   } catch (error) {
@@ -130,8 +132,7 @@ exports.updateProfile = async (req, res) => {
 
 exports.getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.userId)
-      .select('name email role specialization experience licenseNumber bio phone currentLocation latitude longitude skills preferredLocations verified profileImage resumeUrl resumeAnalysis');
+    const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.json(serializeUser(user));
   } catch (error) {
@@ -156,7 +157,7 @@ exports.uploadProfileImageHandler = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
     const imageUrl = fileUrl(req);
-    const user = await User.findByIdAndUpdate(req.user.id, { profileImage: imageUrl }, { new: true }).select('-password');
+    const user = await User.findByIdAndUpdate(req.user.id, { profileImage: imageUrl }, { new: true });
     res.json({ message: 'Profile image uploaded successfully', profileImage: imageUrl, user: serializeUser(user) });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -169,7 +170,7 @@ exports.uploadResumeHandler = async (req, res) => {
       return res.status(400).json({ message: 'No file uploaded' });
     }
     const resumeUrl = fileUrl(req);
-    const user = await User.findByIdAndUpdate(req.user.id, { resumeUrl }, { new: true }).select('-password');
+    const user = await User.findByIdAndUpdate(req.user.id, { resumeUrl }, { new: true });
     res.json({ message: 'Resume uploaded successfully', resumeUrl, user: serializeUser(user) });
   } catch (error) {
     res.status(500).json({ error: error.message });
