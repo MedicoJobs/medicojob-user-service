@@ -62,8 +62,6 @@ const uploadProfileImage = multer({
   limits: {
     fileSize: PROFILE_IMAGE_MAX_BYTES,
     files: 1,
-    fields: 0,
-    parts: 1,
   },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'image/jpeg' || file.mimetype === 'image/png') {
@@ -79,8 +77,6 @@ const uploadResume = multer({
   limits: {
     fileSize: RESUME_MAX_BYTES,
     files: 1,
-    fields: 0,
-    parts: 1,
     fieldSize: MULTIPART_TEXT_FIELD_MAX_BYTES,
   },
   fileFilter: (req, file, cb) => {
