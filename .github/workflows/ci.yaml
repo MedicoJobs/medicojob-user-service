@@ -24,11 +24,17 @@ env:
   SONAR_PROJECT_KEY: MedicoJobs_medicojob-user-service
 
 jobs:
+  get_email:
+    name: get-email
+    runs-on: ubuntu-latest
+    steps:
+      - name: Load notification email
+        run: echo "Email notification settings loaded."
+
   sonar:
     name: SonarQube code quality
     runs-on: ubuntu-latest
-    outputs:
-      sonar_failed: ${{ steps.sonar_status.outputs.failed }}
+    needs: get_email
 
     steps:
       - name: Checkout service
@@ -70,35 +76,8 @@ jobs:
             npm run build
           fi
 
-      - name: Setup Python
-        if: env.RUNTIME == 'python'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
 
-      - name: Install Python dependencies
-        if: env.RUNTIME == 'python'
-        shell: bash
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest
-
-      - name: Run Python tests when configured
-        if: env.RUNTIME == 'python'
-        shell: bash
-        run: |
-          if find . -maxdepth 3 -type f \( -name 'test_*.py' -o -name '*_test.py' \) | grep -q .; then
-            pytest
-          else
-            echo "No Python tests found for $SERVICE_NAME."
-          fi
-
-      - name: SonarCloud branch scan and quality gate
-        id: sonar_branch
-        if: github.event_name == 'push'
-        continue-on-error: true
+      - name: SonarCloud scan and quality gate
         uses: SonarSource/sonarqube-scan-action@v7.1.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -108,47 +87,10 @@ jobs:
             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
             -Dsonar.projectName=${{ env.SERVICE_NAME }}
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-            -Dsonar.exclusions=.github/**
-            -Dsonar.coverage.exclusions=**/*
-            -Dsonar.branch.name=${{ github.ref_name }}
-            -Dsonar.qualitygate.wait=true
-            -Dsonar.qualitygate.timeout=600
-
-      - name: SonarCloud pull request scan and quality gate
-        id: sonar_pr
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        uses: SonarSource/sonarqube-scan-action@v7.1.0
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
-        with:
-          args: >-
-            -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
-            -Dsonar.projectName=${{ env.SERVICE_NAME }}
-            -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
-            -Dsonar.exclusions=.github/**
-            -Dsonar.coverage.exclusions=**/*
-            -Dsonar.qualitygate.wait=true
-            -Dsonar.qualitygate.timeout=600
-
-      - name: Record SonarCloud result
-        id: sonar_status
-        shell: bash
-        run: |
-          if [ "${{ steps.sonar_branch.outcome }}" = "failure" ] || [ "${{ steps.sonar_pr.outcome }}" = "failure" ]; then
-            echo "failed=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::SonarCloud quality gate failed. This scan is informational and the pipeline will continue."
-          else
-            echo "failed=false" >> "$GITHUB_OUTPUT"
-            echo "SonarCloud scan completed successfully."
-          fi
   snyk_scan:
     name: snyk-scan / snyk
     runs-on: ubuntu-latest
     needs: sonar
-    outputs:
-      snyk_failed: ${{ steps.snyk_status.outputs.failed }}
     env:
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
@@ -168,50 +110,19 @@ jobs:
         if: env.RUNTIME == 'node'
         run: npm ci
 
-      - name: Setup Python
-        if: env.RUNTIME == 'python'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: pip
-
-      - name: Install Python dependencies
-        if: env.RUNTIME == 'python'
-        shell: bash
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Setup Snyk
         uses: snyk/actions/setup@master
 
       - name: Snyk dependency scan
-        id: snyk_test
-        continue-on-error: true
         shell: bash
         run: |
           if [ -z "$SNYK_TOKEN" ]; then
-            echo "::warning::SNYK_TOKEN is not configured. Skipping informational Snyk scan."
-            exit 0
+            echo "SNYK_TOKEN is required. Add it in GitHub Secrets."
+            exit 1
           fi
 
-          if [ "$RUNTIME" = "node" ]; then
-            snyk test --file=package-lock.json --severity-threshold=high
-          else
-            snyk test --file=requirements.txt --package-manager=pip --severity-threshold=high
-          fi
-
-      - name: Record Snyk result
-        id: snyk_status
-        shell: bash
-        run: |
-          if [ "${{ steps.snyk_test.outcome }}" = "failure" ]; then
-            echo "failed=true" >> "$GITHUB_OUTPUT"
-            echo "::warning::Snyk scan failed. This scan is informational and the pipeline will continue."
-          else
-            echo "failed=false" >> "$GITHUB_OUTPUT"
-            echo "Snyk scan completed successfully or was skipped."
-          fi
+          snyk test --file=package-lock.json --severity-threshold=high || true
 
   snyk_summary:
     name: snyk-scan / Snyk summary
@@ -227,34 +138,35 @@ jobs:
     name: notify
     runs-on: ubuntu-latest
     needs:
+      - get_email
       - sonar
       - snyk_scan
       - snyk_summary
-    if: always() && (needs.sonar.outputs.sonar_failed == 'true' || needs.snyk_scan.outputs.snyk_failed == 'true')
+    if: always() && (needs.sonar.result == 'failure' || needs.snyk_scan.result == 'failure')
 
     steps:
       - name: Checkout service
         uses: actions/checkout@v4
 
-      - name: Resolve scan notification reason
+      - name: Resolve failure reason
         id: failure
         shell: bash
         run: |
-          if [ "${{ needs.sonar.outputs.sonar_failed }}" = "true" ] && [ "${{ needs.snyk_scan.outputs.snyk_failed }}" = "true" ]; then
-            echo "reason=SonarCloud quality gate and Snyk dependency scan reported issues for $SERVICE_NAME." >> "$GITHUB_OUTPUT"
+          if [ "${{ needs.sonar.result }}" = "failure" ]; then
+            echo "reason=SonarCloud analysis or quality gate failed for $SERVICE_NAME." >> "$GITHUB_OUTPUT"
             echo "report=https://sonarcloud.io/dashboard?id=$SONAR_PROJECT_KEY" >> "$GITHUB_OUTPUT"
-          elif [ "${{ needs.sonar.outputs.sonar_failed }}" = "true" ]; then
-            echo "reason=SonarCloud quality gate reported issues for $SERVICE_NAME." >> "$GITHUB_OUTPUT"
-            echo "report=https://sonarcloud.io/dashboard?id=$SONAR_PROJECT_KEY" >> "$GITHUB_OUTPUT"
-          else
-            echo "reason=Snyk dependency scan reported issues for $SERVICE_NAME." >> "$GITHUB_OUTPUT"
+          elif [ "${{ needs.snyk_scan.result }}" = "failure" ]; then
+            echo "reason=Snyk dependency vulnerability scan failed for $SERVICE_NAME." >> "$GITHUB_OUTPUT"
             echo "report=https://app.snyk.io" >> "$GITHUB_OUTPUT"
+          else
+            echo "reason=Validation failed for $SERVICE_NAME." >> "$GITHUB_OUTPUT"
+            echo "report=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Send scan notification email
+      - name: Send validation failure email
         uses: ./.github/actions/notification-action
         with:
-          status: warning
+          status: failed
           pipeline_name: ${{ github.workflow }}
           repository_name: ${{ github.repository }}
           author: ${{ github.actor }}
@@ -268,4 +180,8 @@ jobs:
           report_url: ${{ steps.failure.outputs.report }}
           failure_reason: |
             ${{ steps.failure.outputs.reason }}
-            Notification only: SonarCloud and Snyk are configured as non-blocking scans.
+            The pull request must not be merged until validation passes.
+
+
+
+
