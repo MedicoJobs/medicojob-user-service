@@ -21,6 +21,8 @@ const ONE_MB = 1024 * 1024;
 const PROFILE_IMAGE_MAX_BYTES = 2 * ONE_MB;
 const RESUME_MAX_BYTES = 10 * ONE_MB;
 const MULTIPART_TEXT_FIELD_MAX_BYTES = 16 * 1024;
+const MULTIPART_REQUEST_OVERHEAD_MAX_BYTES = 64 * 1024;
+const RESUME_MAX_CONTENT_LENGTH_BYTES = RESUME_MAX_BYTES + MULTIPART_REQUEST_OVERHEAD_MAX_BYTES;
 
 const ensureUploadDir = (folder) => {
   const dir = path.join(uploadRoot, folder);
@@ -100,6 +102,7 @@ module.exports = {
   enforceContentLength,
   PROFILE_IMAGE_MAX_BYTES,
   RESUME_MAX_BYTES,
+  RESUME_MAX_CONTENT_LENGTH_BYTES,
   uploadProfileImage,
   uploadResume
 };
